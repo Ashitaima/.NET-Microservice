@@ -1,0 +1,140 @@
+### Art Auction Platform - REST API Tests
+### Використовуйте REST Client extension у VS Code
+
+@baseUrl = http://localhost:5001
+@contentType = application/json
+
+### ========================================
+### Auctions API
+### ========================================
+
+### 1. Get all auctions
+GET {{baseUrl}}/api/auctions
+Accept: {{contentType}}
+
+### 2. Get active auctions
+GET {{baseUrl}}/api/auctions/active
+Accept: {{contentType}}
+
+### 3. Get auction by ID
+GET {{baseUrl}}/api/auctions/1
+Accept: {{contentType}}
+
+### 4. Create new auction
+POST {{baseUrl}}/api/auctions
+Content-Type: {{contentType}}
+
+{
+  "artworkId": 200,
+  "artworkName": "Sunset Over Ocean",
+  "sellerUserId": 1,
+  "startPrice": 2500.00,
+  "startTime": "2025-02-10T10:00:00Z",
+  "endTime": "2025-02-20T18:00:00Z"
+}
+
+### 5. Update auction
+PUT {{baseUrl}}/api/auctions/1
+Content-Type: {{contentType}}
+
+{
+  "auctionId": 1,
+  "artworkId": 100,
+  "artworkName": "Starry Night Replica (Updated)",
+  "sellerUserId": 1,
+  "startPrice": 1000.00,
+  "currentPrice": 1500.00,
+  "startTime": "2025-02-01T10:00:00Z",
+  "endTime": "2025-02-10T18:00:00Z",
+  "status": 1,
+  "winnerUserId": 2
+}
+
+### 6. Delete auction
+DELETE {{baseUrl}}/api/auctions/999
+Accept: {{contentType}}
+
+### ========================================
+### Bids API
+### ========================================
+
+### 7. Get bid by ID
+GET {{baseUrl}}/api/bids/1
+Accept: {{contentType}}
+
+### 8. Get all bids for auction
+GET {{baseUrl}}/api/bids/auction/1
+Accept: {{contentType}}
+
+### 9. Get all bids for user
+GET {{baseUrl}}/api/bids/user/2
+Accept: {{contentType}}
+
+### 10. Place a bid on auction (Stored Procedure)
+POST {{baseUrl}}/api/bids
+Content-Type: {{contentType}}
+
+{
+  "auctionId": 1,
+  "userId": 3,
+  "bidAmount": 1600.00
+}
+
+### 11. Try to place bid lower than current price (should fail)
+POST {{baseUrl}}/api/bids
+Content-Type: {{contentType}}
+
+{
+  "auctionId": 1,
+  "userId": 3,
+  "bidAmount": 500.00
+}
+
+### 12. Try to place bid on non-existent auction (should fail)
+POST {{baseUrl}}/api/bids
+Content-Type: {{contentType}}
+
+{
+  "auctionId": 9999,
+  "userId": 2,
+  "bidAmount": 1000.00
+}
+
+### ========================================
+### Error cases for testing
+### ========================================
+
+### 13. Create auction with invalid data (start price <= 0)
+POST {{baseUrl}}/api/auctions
+Content-Type: {{contentType}}
+
+{
+  "artworkId": 300,
+  "artworkName": "Invalid Auction",
+  "sellerUserId": 1,
+  "startPrice": -100.00,
+  "startTime": "2025-02-01T10:00:00Z",
+  "endTime": "2025-02-10T18:00:00Z"
+}
+
+### 14. Create auction with end time before start time
+POST {{baseUrl}}/api/auctions
+Content-Type: {{contentType}}
+
+{
+  "artworkId": 301,
+  "artworkName": "Invalid Time Range",
+  "sellerUserId": 1,
+  "startPrice": 1000.00,
+  "startTime": "2025-02-10T10:00:00Z",
+  "endTime": "2025-02-01T18:00:00Z"
+}
+
+### 15. Get non-existent auction
+GET {{baseUrl}}/api/auctions/99999
+Accept: {{contentType}}
+
+### ========================================
+### Swagger UI
+### ========================================
+### Open in browser: http://localhost:5001/swagger
