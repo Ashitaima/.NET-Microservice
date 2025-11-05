@@ -1,127 +1,54 @@
-using System.Data;
-using Npgsql;
 using AuctionService.Dal.Interfaces;
 using AuctionService.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuctionService.Dal.Repositories;
 
 /// <summary>
-/// Репозиторій користувачів з використанням чистого ADO.NET для PostgreSQL
-/// Демонструє параметризовані запити, NpgsqlCommand, NpgsqlDataReader
+/// Репозиторій для роботи з користувачами використовуючи EF Core
 /// </summary>
-public class UserRepository : IUserRepository
+public class UserRepository : Repository<User>, IUserRepository
 {
-    private readonly string _connectionString;
-    private readonly IDbTransaction? _transaction;
-
-    public UserRepository(string connectionString, IDbTransaction? transaction = null)
+    public UserRepository(AuctionDbContext context) : base(context)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _transaction = transaction;
-    }
-
-    public async Task<User?> GetByIdAsync(long userId)
-    {
-        const string sql = "SELECT user_id, user_name, balance FROM users WHERE user_id = @user_id";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@user_id", userId);
-
-        using var reader = await command.ExecuteReaderAsync();
-        
-        if (await reader.ReadAsync())
-        {
-            return MapUser(reader);
-        }
-
-        return null;
-    }
-
-    public async Task<IEnumerable<User>> GetAllAsync()
-    {
-        const string sql = "SELECT user_id, user_name, balance FROM users ORDER BY user_name";
-        var users = new List<User>();
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new NpgsqlCommand(sql, connection);
-        using var reader = await command.ExecuteReaderAsync();
-
-        while (await reader.ReadAsync())
-        {
-            users.Add(MapUser(reader));
-        }
-
-        return users;
-    }
-
-    public async Task<long> CreateAsync(User user)
-    {
-        const string sql = @"
-            INSERT INTO users (user_id, user_name, balance) 
-            VALUES (@user_id, @user_name, @balance)
-            RETURNING user_id";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@user_id", user.UserId);
-        command.Parameters.AddWithValue("@user_name", user.UserName);
-        command.Parameters.AddWithValue("@balance", user.Balance);
-
-        var result = await command.ExecuteScalarAsync();
-        return Convert.ToInt64(result);
-    }
-
-    public async Task<bool> UpdateAsync(User user)
-    {
-        const string sql = @"
-            UPDATE users 
-            SET user_name = @user_name, 
-                balance = @balance 
-            WHERE user_id = @user_id";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@user_id", user.UserId);
-        command.Parameters.AddWithValue("@user_name", user.UserName);
-        command.Parameters.AddWithValue("@balance", user.Balance);
-
-        var rowsAffected = await command.ExecuteNonQueryAsync();
-        return rowsAffected > 0;
-    }
-
-    public async Task<bool> DeleteAsync(long userId)
-    {
-        const string sql = "DELETE FROM users WHERE user_id = @user_id";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@user_id", userId);
-
-        var rowsAffected = await command.ExecuteNonQueryAsync();
-        return rowsAffected > 0;
     }
 
     /// <summary>
-    /// Маппінг NpgsqlDataReader на модель User
+    /// Отримати користувача за ім'ям
     /// </summary>
-    private static User MapUser(NpgsqlDataReader reader)
+    public async Task<User?> GetByUserNameAsync(string userName)
     {
-        return new User
+        return await _dbSet
+            .FirstOrDefaultAsync(u => u.UserName == userName);
+    }
+
+    /// <summary>
+    /// Отримати користувачів з аукціонами (Eager Loading)
+    /// </summary>
+    public async Task<IEnumerable<User>> GetUsersWithAuctionsAsync()
+    {
+        return await _dbSet
+            .Include(u => u.SellerAuctions)
+            .Include(u => u.WonAuctions)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Отримати користувача зі ставками (Explicit Loading)
+    /// </summary>
+    public async Task<User?> GetUserWithBidsAsync(long userId)
+    {
+        var user = await _dbSet.FindAsync(userId);
+        
+        if (user != null)
         {
-            UserId = reader.GetInt64(reader.GetOrdinal("user_id")),
-            UserName = reader.GetString(reader.GetOrdinal("user_name")),
-            Balance = reader.GetDecimal(reader.GetOrdinal("balance"))
-        };
+            await _context.Entry(user)
+                .Collection(u => u.Bids)
+                .Query()
+                .Include(b => b.Auction)
+                .LoadAsync();
+        }
+        
+        return user;
     }
 }

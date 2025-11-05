@@ -1,104 +1,63 @@
-using System.Data;
-using Dapper;
-using Npgsql;
 using AuctionService.Dal.Interfaces;
 using AuctionService.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuctionService.Dal.Repositories;
 
 /// <summary>
-/// Репозиторій ставок з використанням Dapper та PostgreSQL functions
+/// Репозиторій для роботи зі ставками використовуючи EF Core
 /// </summary>
-public class BidRepository : IBidRepository
+public class BidRepository : Repository<Bid>, IBidRepository
 {
-    private readonly string _connectionString;
-    private readonly IDbTransaction? _transaction;
-
-    public BidRepository(string connectionString, IDbTransaction? transaction = null)
+    public BidRepository(AuctionDbContext context) : base(context)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _transaction = transaction;
-    }
-
-    public async Task<Bid?> GetByIdAsync(long bidId)
-    {
-        const string sql = @"
-            SELECT bid_id AS BidId, auction_id AS AuctionId, user_id AS UserId, 
-                   bid_amount AS BidAmount, timestamp AS Timestamp
-            FROM bids 
-            WHERE bid_id = @BidId";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        return await connection.QueryFirstOrDefaultAsync<Bid>(sql, new { BidId = bidId });
-    }
-
-    public async Task<IEnumerable<Bid>> GetByAuctionIdAsync(long auctionId)
-    {
-        const string sql = @"
-            SELECT bid_id AS BidId, auction_id AS AuctionId, user_id AS UserId, 
-                   bid_amount AS BidAmount, timestamp AS Timestamp
-            FROM bids 
-            WHERE auction_id = @AuctionId
-            ORDER BY bid_amount DESC, timestamp DESC";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        return await connection.QueryAsync<Bid>(sql, new { AuctionId = auctionId });
-    }
-
-    public async Task<IEnumerable<Bid>> GetByUserIdAsync(long userId)
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        
-        // Використовуємо PostgreSQL function sp_get_user_bids
-        const string sql = "SELECT * FROM sp_get_user_bids(@UserId)";
-        
-        var result = await connection.QueryAsync(sql, new { UserId = userId });
-
-        return result.Select(r => new Bid
-        {
-            BidId = r.bid_id,
-            AuctionId = r.auction_id,
-            BidAmount = r.bid_amount,
-            Timestamp = r.bid_timestamp,
-            UserId = userId
-        });
-    }
-
-    public async Task<long> CreateAsync(Bid bid)
-    {
-        const string sql = @"
-            INSERT INTO bids (auction_id, user_id, bid_amount, timestamp)
-            VALUES (@AuctionId, @UserId, @BidAmount, @Timestamp)
-            RETURNING bid_id";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        
-        var id = await connection.ExecuteScalarAsync<long>(sql, new
-        {
-            bid.AuctionId,
-            bid.UserId,
-            bid.BidAmount,
-            Timestamp = bid.Timestamp == default ? DateTime.UtcNow : bid.Timestamp
-        });
-
-        return id;
     }
 
     /// <summary>
-    /// Розміщення ставки через PostgreSQL function з блокуванням
+    /// Отримати ставки за ID аукціону
     /// </summary>
-    public async Task<bool> PlaceBidAsync(long auctionId, long userId, decimal bidAmount)
+    public async Task<IEnumerable<Bid>> GetByAuctionIdAsync(long auctionId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        
-        // Викликаємо PostgreSQL function sp_place_bid
-        const string sql = "SELECT * FROM sp_place_bid(@AuctionId, @UserId, @BidAmount)";
-        
-        var result = await connection.QueryFirstOrDefaultAsync<dynamic>(
-            sql,
-            new { AuctionId = auctionId, UserId = userId, BidAmount = bidAmount }
-        );
+        return await _dbSet
+            .Where(b => b.AuctionId == auctionId)
+            .Include(b => b.User)
+            .OrderByDescending(b => b.Timestamp)
+            .ToListAsync();
+    }
 
-        return result?.success == 1;
+    /// <summary>
+    /// Отримати ставки за ID користувача
+    /// </summary>
+    public async Task<IEnumerable<Bid>> GetByUserIdAsync(long userId)
+    {
+        return await _dbSet
+            .Where(b => b.UserId == userId)
+            .Include(b => b.Auction)
+            .OrderByDescending(b => b.Timestamp)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Отримати найвищу ставку для аукціону
+    /// </summary>
+    public async Task<Bid?> GetHighestBidForAuctionAsync(long auctionId)
+    {
+        return await _dbSet
+            .Where(b => b.AuctionId == auctionId)
+            .OrderByDescending(b => b.BidAmount)
+            .FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// Отримати ставки з користувачами (Eager Loading)
+    /// </summary>
+    public async Task<IEnumerable<Bid>> GetBidsWithUsersAsync(long auctionId)
+    {
+        return await _dbSet
+            .Where(b => b.AuctionId == auctionId)
+            .Include(b => b.User)
+            .Include(b => b.Auction)
+            .OrderByDescending(b => b.BidAmount)
+            .ToListAsync();
     }
 }

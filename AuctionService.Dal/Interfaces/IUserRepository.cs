@@ -3,13 +3,11 @@ using AuctionService.Domain.Entities;
 namespace AuctionService.Dal.Interfaces;
 
 /// <summary>
-/// Репозиторій для роботи з користувачами (ADO.NET)
+/// Репозиторій для роботи з користувачами (EF Core)
 /// </summary>
-public interface IUserRepository
+public interface IUserRepository : IRepository<User>
 {
-    Task<User?> GetByIdAsync(long userId);
-    Task<IEnumerable<User>> GetAllAsync();
-    Task<long> CreateAsync(User user);
-    Task<bool> UpdateAsync(User user);
-    Task<bool> DeleteAsync(long userId);
+    Task<User?> GetByUserNameAsync(string userName);
+    Task<IEnumerable<User>> GetUsersWithAuctionsAsync();
+    Task<User?> GetUserWithBidsAsync(long userId);
 }

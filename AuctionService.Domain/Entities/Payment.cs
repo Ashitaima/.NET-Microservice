@@ -11,4 +11,8 @@ public class Payment
     public decimal Amount { get; set; }
     public DateTime PaymentTime { get; set; }
     public TransactionStatus TransactionStatus { get; set; }
+    
+    // Navigation properties
+    public Auction Auction { get; set; } = null!;
+    public User User { get; set; } = null!;
 }

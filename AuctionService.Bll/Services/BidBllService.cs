@@ -43,13 +43,40 @@ public class BidBllService : IBidService
         // Перевіряємо чи існує аукціон
         var auction = await _unitOfWork.Auctions.GetByIdAsync(dto.AuctionId);
         if (auction == null)
-            throw new InvalidOperationException("Auction not found");
+            throw new KeyNotFoundException("Auction not found");
 
         // Перевіряємо чи ставка більша за поточну ціну
         if (dto.BidAmount <= auction.CurrentPrice)
-            throw new ArgumentException($"Bid must be higher than current price ({auction.CurrentPrice})");
+            throw new InvalidOperationException($"Bid must be higher than current price ({auction.CurrentPrice})");
 
-        // Використовуємо stored procedure для атомарної операції
-        return await _unitOfWork.Bids.PlaceBidAsync(dto.AuctionId, dto.UserId, dto.BidAmount);
+        // Створюємо нову ставку
+        var bid = new Domain.Entities.Bid
+        {
+            AuctionId = dto.AuctionId,
+            UserId = dto.UserId,
+            BidAmount = dto.BidAmount,
+            Timestamp = DateTime.UtcNow
+        };
+
+        // Використовуємо транзакцію для атомарності
+        await _unitOfWork.BeginTransactionAsync();
+        try
+        {
+            await _unitOfWork.Bids.AddAsync(bid);
+            
+            // Оновлюємо поточну ціну аукціону
+            auction.CurrentPrice = dto.BidAmount;
+            _unitOfWork.Auctions.Update(auction);
+            
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitAsync();
+            
+            return true;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackAsync();
+            throw;
+        }
     }
 }

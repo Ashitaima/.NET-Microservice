@@ -48,7 +48,10 @@ public class AuctionBllService : IAuctionService
             throw new ArgumentException("Artwork name is required");
 
         var auction = _mapper.Map<Auction>(dto);
-        return await _unitOfWork.Auctions.CreateAsync(auction);
+        await _unitOfWork.Auctions.AddAsync(auction);
+        await _unitOfWork.SaveChangesAsync();
+        
+        return auction.AuctionId;
     }
 
     public async Task<bool> UpdateAsync(long auctionId, AuctionDto dto)
@@ -56,7 +59,7 @@ public class AuctionBllService : IAuctionService
         // Перевіряємо чи існує
         var existing = await _unitOfWork.Auctions.GetByIdAsync(auctionId);
         if (existing == null)
-            throw new InvalidOperationException("Auction not found");
+            throw new KeyNotFoundException($"Auction with ID {auctionId} not found");
 
         // Валідація
         if (dto.StartPrice <= 0)
@@ -65,14 +68,30 @@ public class AuctionBllService : IAuctionService
         if (dto.CurrentPrice < dto.StartPrice)
             throw new ArgumentException("Current price cannot be less than start price");
 
-        var auction = _mapper.Map<Auction>(dto);
-        auction.AuctionId = auctionId;
+        // Оновлюємо властивості
+        existing.ArtworkName = dto.ArtworkName;
+        existing.StartPrice = dto.StartPrice;
+        existing.CurrentPrice = dto.CurrentPrice;
+        existing.StartTime = dto.StartTime;
+        existing.EndTime = dto.EndTime;
+        existing.Status = (AuctionStatus)dto.Status;
+        existing.WinnerUserId = dto.WinnerUserId;
 
-        return await _unitOfWork.Auctions.UpdateAsync(auction);
+        _unitOfWork.Auctions.Update(existing);
+        await _unitOfWork.SaveChangesAsync();
+        
+        return true;
     }
 
     public async Task<bool> DeleteAsync(long auctionId)
     {
-        return await _unitOfWork.Auctions.DeleteAsync(auctionId);
+        var auction = await _unitOfWork.Auctions.GetByIdAsync(auctionId);
+        if (auction == null)
+            return false;
+            
+        _unitOfWork.Auctions.Delete(auction);
+        await _unitOfWork.SaveChangesAsync();
+        
+        return true;
     }
 }

@@ -1,69 +1,51 @@
-using System.Data;
-using Dapper;
-using Npgsql;
 using AuctionService.Dal.Interfaces;
 using AuctionService.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuctionService.Dal.Repositories;
 
 /// <summary>
-/// Репозиторій платежів з використанням Dapper та PostgreSQL functions
+/// Репозиторій для роботи з платежами використовуючи EF Core
 /// </summary>
-public class PaymentRepository : IPaymentRepository
+public class PaymentRepository : Repository<Payment>, IPaymentRepository
 {
-    private readonly string _connectionString;
-    private readonly IDbTransaction? _transaction;
-
-    public PaymentRepository(string connectionString, IDbTransaction? transaction = null)
+    public PaymentRepository(AuctionDbContext context) : base(context)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _transaction = transaction;
-    }
-
-    public async Task<Payment?> GetByIdAsync(long paymentId)
-    {
-        const string sql = @"
-            SELECT payment_id AS PaymentId, auction_id AS AuctionId, user_id AS UserId, 
-                   amount AS Amount, payment_time AS PaymentTime, transaction_status AS TransactionStatus
-            FROM payments 
-            WHERE payment_id = @PaymentId";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        return await connection.QueryFirstOrDefaultAsync<Payment>(sql, new { PaymentId = paymentId });
-    }
-
-    public async Task<Payment?> GetByAuctionIdAsync(long auctionId)
-    {
-        const string sql = @"
-            SELECT payment_id AS PaymentId, auction_id AS AuctionId, user_id AS UserId, 
-                   amount AS Amount, payment_time AS PaymentTime, transaction_status AS TransactionStatus
-            FROM payments 
-            WHERE auction_id = @AuctionId";
-
-        using var connection = new NpgsqlConnection(_connectionString);
-        return await connection.QueryFirstOrDefaultAsync<Payment>(sql, new { AuctionId = auctionId });
     }
 
     /// <summary>
-    /// Створення платежу через PostgreSQL function
+    /// Отримати платіж за ID аукціону
     /// </summary>
-    public async Task<long> CreatePaymentAsync(long auctionId, long userId, decimal amount)
+    public async Task<Payment?> GetByAuctionIdAsync(long auctionId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        
-        // Викликаємо PostgreSQL function sp_create_payment
-        const string sql = "SELECT * FROM sp_create_payment(@AuctionId, @UserId, @Amount)";
-        
-        var result = await connection.QueryFirstOrDefaultAsync<dynamic>(
-            sql,
-            new { AuctionId = auctionId, UserId = userId, Amount = amount }
-        );
+        return await _dbSet
+            .Include(p => p.Auction)
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.AuctionId == auctionId);
+    }
 
-        if (result?.success == 1)
-        {
-            return (long)result.payment_id;
-        }
+    /// <summary>
+    /// Отримати платежі користувача
+    /// </summary>
+    public async Task<IEnumerable<Payment>> GetPaymentsByUserAsync(long userId)
+    {
+        return await _dbSet
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Auction)
+            .OrderByDescending(p => p.PaymentTime)
+            .ToListAsync();
+    }
 
-        throw new InvalidOperationException(result?.message ?? "Failed to create payment");
+    /// <summary>
+    /// Отримати платежі за статусом
+    /// </summary>
+    public async Task<IEnumerable<Payment>> GetPaymentsByStatusAsync(TransactionStatus status)
+    {
+        return await _dbSet
+            .Where(p => p.TransactionStatus == status)
+            .Include(p => p.Auction)
+            .Include(p => p.User)
+            .OrderByDescending(p => p.PaymentTime)
+            .ToListAsync();
     }
 }

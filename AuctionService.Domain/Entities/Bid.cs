@@ -10,4 +10,8 @@ public class Bid
     public long UserId { get; set; }
     public decimal BidAmount { get; set; }
     public DateTime Timestamp { get; set; }
+    
+    // Navigation properties
+    public Auction Auction { get; set; } = null!;
+    public User User { get; set; } = null!;
 }

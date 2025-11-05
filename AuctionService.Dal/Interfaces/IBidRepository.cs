@@ -3,13 +3,12 @@ using AuctionService.Domain.Entities;
 namespace AuctionService.Dal.Interfaces;
 
 /// <summary>
-/// Репозиторій для роботи зі ставками (Dapper)
+/// Репозиторій для роботи зі ставками (EF Core)
 /// </summary>
-public interface IBidRepository
+public interface IBidRepository : IRepository<Bid>
 {
-    Task<Bid?> GetByIdAsync(long bidId);
     Task<IEnumerable<Bid>> GetByAuctionIdAsync(long auctionId);
     Task<IEnumerable<Bid>> GetByUserIdAsync(long userId);
-    Task<long> CreateAsync(Bid bid);
-    Task<bool> PlaceBidAsync(long auctionId, long userId, decimal bidAmount);
+    Task<Bid?> GetHighestBidForAuctionAsync(long auctionId);
+    Task<IEnumerable<Bid>> GetBidsWithUsersAsync(long auctionId);
 }

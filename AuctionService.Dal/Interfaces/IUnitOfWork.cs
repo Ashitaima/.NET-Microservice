@@ -1,5 +1,3 @@
-using System.Data;
-
 namespace AuctionService.Dal.Interfaces;
 
 /// <summary>
@@ -12,6 +10,7 @@ public interface IUnitOfWork : IDisposable
     IBidRepository Bids { get; }
     IPaymentRepository Payments { get; }
     
+    Task<int> SaveChangesAsync();
     Task BeginTransactionAsync();
     Task CommitAsync();
     Task RollbackAsync();

@@ -1,148 +1,58 @@
-using System.Data;
-using Npgsql;
 using AuctionService.Dal.Interfaces;
 using AuctionService.Dal.Repositories;
 
 namespace AuctionService.Dal;
 
 /// <summary>
-/// Unit of Work для керування транзакціями та репозиторіями з PostgreSQL
+/// Unit of Work для керування транзакціями та репозиторіями з EF Core
 /// </summary>
-public class UnitOfWork : IUnitOfWork
+public class UnitOfWork : IUnitOfWork, IDisposable
 {
-    private readonly string _connectionString;
-    private NpgsqlConnection? _connection;
-    private IDbTransaction? _transaction;
+    private readonly AuctionDbContext _context;
+    private IAuctionRepository? _auctionRepository;
+    private IBidRepository? _bidRepository;
+    private IUserRepository? _userRepository;
+    private IPaymentRepository? _paymentRepository;
 
-    private IUserRepository? _users;
-    private IAuctionRepository? _auctions;
-    private IBidRepository? _bids;
-    private IPaymentRepository? _payments;
-
-    public UnitOfWork(string connectionString)
+    public UnitOfWork(AuctionDbContext context)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
-    public IUserRepository Users
+    public IAuctionRepository Auctions => _auctionRepository ??= new AuctionRepository(_context);
+    public IBidRepository Bids => _bidRepository ??= new BidRepository(_context);
+    public IUserRepository Users => _userRepository ??= new UserRepository(_context);
+    public IPaymentRepository Payments => _paymentRepository ??= new PaymentRepository(_context);
+
+    public async Task<int> SaveChangesAsync()
     {
-        get
-        {
-            _users ??= new UserRepository(_connectionString, _transaction);
-            return _users;
-        }
+        return await _context.SaveChangesAsync();
     }
 
-    public IAuctionRepository Auctions
-    {
-        get
-        {
-            _auctions ??= new AuctionRepository(_connectionString, _transaction);
-            return _auctions;
-        }
-    }
-
-    public IBidRepository Bids
-    {
-        get
-        {
-            _bids ??= new BidRepository(_connectionString, _transaction);
-            return _bids;
-        }
-    }
-
-    public IPaymentRepository Payments
-    {
-        get
-        {
-            _payments ??= new PaymentRepository(_connectionString, _transaction);
-            return _payments;
-        }
-    }
-
-    /// <summary>
-    /// Початок транзакції
-    /// </summary>
     public async Task BeginTransactionAsync()
     {
-        if (_connection != null)
-        {
-            throw new InvalidOperationException("Transaction already started");
-        }
-
-        _connection = new NpgsqlConnection(_connectionString);
-        await _connection.OpenAsync();
-        _transaction = _connection.BeginTransaction();
-
-        // Оновлюємо репозиторії з новою транзакцією
-        _users = new UserRepository(_connectionString, _transaction);
-        _auctions = new AuctionRepository(_connectionString, _transaction);
-        _bids = new BidRepository(_connectionString, _transaction);
-        _payments = new PaymentRepository(_connectionString, _transaction);
+        await _context.Database.BeginTransactionAsync();
     }
 
-    /// <summary>
-    /// Підтвердження транзакції
-    /// </summary>
     public async Task CommitAsync()
     {
-        if (_transaction == null)
+        if (_context.Database.CurrentTransaction != null)
         {
-            throw new InvalidOperationException("No active transaction to commit");
-        }
-
-        try
-        {
-            _transaction.Commit();
-        }
-        catch
-        {
-            _transaction.Rollback();
-            throw;
-        }
-        finally
-        {
-            _transaction.Dispose();
-            _transaction = null;
-            
-            if (_connection != null)
-            {
-                await _connection.DisposeAsync();
-                _connection = null;
-            }
+            await _context.Database.CommitTransactionAsync();
         }
     }
 
-    /// <summary>
-    /// Відкат транзакції
-    /// </summary>
     public async Task RollbackAsync()
     {
-        if (_transaction == null)
+        if (_context.Database.CurrentTransaction != null)
         {
-            throw new InvalidOperationException("No active transaction to rollback");
-        }
-
-        try
-        {
-            _transaction.Rollback();
-        }
-        finally
-        {
-            _transaction.Dispose();
-            _transaction = null;
-            
-            if (_connection != null)
-            {
-                await _connection.DisposeAsync();
-                _connection = null;
-            }
+            await _context.Database.RollbackTransactionAsync();
         }
     }
 
     public void Dispose()
     {
-        _transaction?.Dispose();
-        _connection?.Dispose();
+        _context?.Dispose();
     }
 }
+

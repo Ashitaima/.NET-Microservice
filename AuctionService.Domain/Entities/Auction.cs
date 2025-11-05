@@ -15,4 +15,10 @@ public class Auction
     public DateTime EndTime { get; set; }
     public AuctionStatus Status { get; set; }
     public long? WinnerUserId { get; set; }
+    
+    // Navigation properties
+    public User? Seller { get; set; }
+    public User? Winner { get; set; }
+    public ICollection<Bid> Bids { get; set; } = new List<Bid>();
+    public Payment? Payment { get; set; }
 }

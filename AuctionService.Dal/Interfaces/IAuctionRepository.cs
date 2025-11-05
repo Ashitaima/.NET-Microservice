@@ -3,14 +3,13 @@ using AuctionService.Domain.Entities;
 namespace AuctionService.Dal.Interfaces;
 
 /// <summary>
-/// Репозиторій для роботи з аукціонами (Dapper)
+/// Репозиторій для роботи з аукціонами (EF Core)
 /// </summary>
-public interface IAuctionRepository
+public interface IAuctionRepository : IRepository<Auction>
 {
-    Task<Auction?> GetByIdAsync(long auctionId);
-    Task<IEnumerable<Auction>> GetAllAsync();
     Task<IEnumerable<Auction>> GetActiveAuctionsAsync();
-    Task<long> CreateAsync(Auction auction);
-    Task<bool> UpdateAsync(Auction auction);
-    Task<bool> DeleteAsync(long auctionId);
+    Task<IEnumerable<Auction>> GetAuctionsWithBidsAsync();
+    Task<Auction?> GetAuctionWithDetailsAsync(long auctionId);
+    Task<IEnumerable<Auction>> GetAuctionsBySellerAsync(long sellerId);
+    Task<IEnumerable<Auction>> GetAuctionsByStatusAsync(AuctionStatus status);
 }

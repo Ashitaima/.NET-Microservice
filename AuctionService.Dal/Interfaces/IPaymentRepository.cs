@@ -3,11 +3,11 @@ using AuctionService.Domain.Entities;
 namespace AuctionService.Dal.Interfaces;
 
 /// <summary>
-/// Репозиторій для роботи з платежами (Dapper)
+/// Репозиторій для роботи з платежами (EF Core)
 /// </summary>
-public interface IPaymentRepository
+public interface IPaymentRepository : IRepository<Payment>
 {
-    Task<Payment?> GetByIdAsync(long paymentId);
     Task<Payment?> GetByAuctionIdAsync(long auctionId);
-    Task<long> CreatePaymentAsync(long auctionId, long userId, decimal amount);
+    Task<IEnumerable<Payment>> GetPaymentsByUserAsync(long userId);
+    Task<IEnumerable<Payment>> GetPaymentsByStatusAsync(TransactionStatus status);
 }
