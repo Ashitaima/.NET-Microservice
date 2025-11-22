@@ -1,0 +1,6 @@
+@ArtAuction.Aggregator_HostAddress = http://localhost:5277
+
+GET {{ArtAuction.Aggregator_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

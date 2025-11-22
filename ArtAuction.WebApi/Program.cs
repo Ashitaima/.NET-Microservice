@@ -2,6 +2,9 @@ using MediatR;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Aspire ServiceDefaults - OpenTelemetry, Serilog, Health Checks
+builder.AddServiceDefaults();
+
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -31,6 +34,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Aspire ServiceDefaults middleware (logging, tracing)
+app.MapDefaultEndpoints();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

@@ -1,0 +1,6 @@
+@ArtAuction.ApiGateway_HostAddress = http://localhost:5258
+
+GET {{ArtAuction.ApiGateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

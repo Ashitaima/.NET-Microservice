@@ -19,6 +19,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.Infrastructure",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.WebApi", "ArtAuction.WebApi\ArtAuction.WebApi.csproj", "{90B237B3-B036-4063-88BE-BA9151417185}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.AppHost", "ArtAuction.AppHost\ArtAuction.AppHost.csproj", "{061E6FF7-708A-4E1E-A256-C7016BB95B32}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.ServiceDefaults", "ArtAuction.ServiceDefaults\ArtAuction.ServiceDefaults.csproj", "{3755EFCF-672E-4125-A87B-1FDC3E4E0BF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.ApiGateway", "ArtAuction.ApiGateway\ArtAuction.ApiGateway.csproj", "{5DE57A2C-6FDF-4795-8B64-265FCF320BC8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.Aggregator", "ArtAuction.Aggregator\ArtAuction.Aggregator.csproj", "{76F3A758-D441-4524-9F26-6AAA880F0C05}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,5 +68,21 @@ Global
 		{90B237B3-B036-4063-88BE-BA9151417185}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90B237B3-B036-4063-88BE-BA9151417185}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90B237B3-B036-4063-88BE-BA9151417185}.Release|Any CPU.Build.0 = Release|Any CPU
+		{061E6FF7-708A-4E1E-A256-C7016BB95B32}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{061E6FF7-708A-4E1E-A256-C7016BB95B32}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{061E6FF7-708A-4E1E-A256-C7016BB95B32}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{061E6FF7-708A-4E1E-A256-C7016BB95B32}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3755EFCF-672E-4125-A87B-1FDC3E4E0BF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3755EFCF-672E-4125-A87B-1FDC3E4E0BF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3755EFCF-672E-4125-A87B-1FDC3E4E0BF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3755EFCF-672E-4125-A87B-1FDC3E4E0BF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5DE57A2C-6FDF-4795-8B64-265FCF320BC8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5DE57A2C-6FDF-4795-8B64-265FCF320BC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5DE57A2C-6FDF-4795-8B64-265FCF320BC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5DE57A2C-6FDF-4795-8B64-265FCF320BC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
