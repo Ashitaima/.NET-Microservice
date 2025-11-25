@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+option csharp_namespace = "ArtAuction.Aggregator.Protos";
+
+package auction;
+
+// Service definition for Auction operations
+service AuctionService {
+  // Get auction by ID
+  rpc GetAuction (GetAuctionRequest) returns (AuctionResponse);
+  
+  // Get all auctions with pagination
+  rpc GetAuctions (GetAuctionsRequest) returns (AuctionsListResponse);
+  
+  // Create new auction
+  rpc CreateAuction (CreateAuctionRequest) returns (AuctionResponse);
+  
+  // Place a bid on auction
+  rpc PlaceBid (PlaceBidRequest) returns (BidResponse);
+  
+  // Get active auctions (status-based query)
+  rpc GetActiveAuctions (GetActiveAuctionsRequest) returns (AuctionsListResponse);
+}
+
+// Request to get single auction
+message GetAuctionRequest {
+  string id = 1;
+}
+
+// Request to get paginated auctions list
+message GetAuctionsRequest {
+  int32 page_number = 1;
+  int32 page_size = 2;
+}
+
+// Request to create auction
+message CreateAuctionRequest {
+  string title = 1;
+  string description = 2;
+  double starting_price = 3;
+  string currency = 4;
+  string seller_id = 5;
+  int64 end_time_ticks = 6; // DateTime as ticks
+}
+
+// Request to place bid
+message PlaceBidRequest {
+  string auction_id = 1;
+  string bidder_id = 2;
+  double amount = 3;
+  string currency = 4;
+}
+
+// Request for active auctions
+message GetActiveAuctionsRequest {
+  int32 page_number = 1;
+  int32 page_size = 2;
+}
+
+// Single auction response
+message AuctionResponse {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  MoneyMessage starting_price = 4;
+  MoneyMessage current_price = 5;
+  string seller_id = 6;
+  int64 start_time_ticks = 7;
+  int64 end_time_ticks = 8;
+  string status = 9; // Active, Completed, Cancelled
+  BidInfoMessage highest_bid = 10;
+}
+
+// List of auctions response
+message AuctionsListResponse {
+  repeated AuctionResponse auctions = 1;
+  int32 total_count = 2;
+  int32 page_number = 3;
+  int32 page_size = 4;
+}
+
+// Bid response
+message BidResponse {
+  bool success = 1;
+  string message = 2;
+  BidInfoMessage bid = 3;
+}
+
+// Money value object
+message MoneyMessage {
+  double amount = 1;
+  string currency = 2;
+}
+
+// Bid information
+message BidInfoMessage {
+  string bidder_id = 1;
+  MoneyMessage amount = 2;
+  int64 timestamp_ticks = 3;
+}
