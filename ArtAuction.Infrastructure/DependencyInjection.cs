@@ -29,7 +29,7 @@ public static class DependencyInjection
         // Register repositories
         services.AddScoped<IAuctionRepository, MongoAuctionRepository>();
 
-        // RabbitMQ Configuration
+        // RabbitMQ Configuration - Optional for development
         services.AddSingleton<IConnection>(sp =>
         {
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
@@ -37,14 +37,25 @@ public static class DependencyInjection
             var connectionString = configuration.GetConnectionString("rabbitmq") 
                 ?? "amqp://guest:guest@localhost:5672";
             
-            var factory = new ConnectionFactory();
-            factory.Uri = new Uri(connectionString);
-            factory.ClientProvidedName = "ArtAuction.WebApi";
-            
-            var connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
-            logger.LogInformation("RabbitMQ connection established to {Uri}", connectionString);
-            
-            return connection;
+            try
+            {
+                var factory = new ConnectionFactory();
+                factory.Uri = new Uri(connectionString);
+                factory.ClientProvidedName = "ArtAuction.WebApi";
+                factory.RequestedConnectionTimeout = TimeSpan.FromSeconds(5);
+                factory.ContinuationTimeout = TimeSpan.FromSeconds(5);
+                
+                var connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
+                logger.LogInformation("RabbitMQ connection established to {Uri}", connectionString);
+                
+                return connection;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to connect to RabbitMQ at {Uri}. Application will continue without RabbitMQ.", connectionString);
+                // Return null - services will handle gracefully
+                return null!;
+            }
         });
 
         // Register event publisher

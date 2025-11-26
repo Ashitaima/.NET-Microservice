@@ -17,6 +17,13 @@ public class RabbitMQTopologyInitializer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Skip if RabbitMQ is not available
+        if (_connection == null)
+        {
+            _logger.LogWarning("RabbitMQ connection not available. Topology initialization skipped.");
+            return;
+        }
+
         using var channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         try

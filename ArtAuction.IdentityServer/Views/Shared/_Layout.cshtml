@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - ArtAuction IdentityServer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding-top: 70px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            color: #0078d4 !important;
+        }
+        .welcome-page {
+            margin-top: 20px;
+        }
+        .panel {
+            margin-bottom: 20px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .panel-heading {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            background-color: #f5f5f5;
+        }
+        .panel-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .panel-body {
+            padding: 15px;
+        }
+        .version {
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+        .lead h1 {
+            color: #0078d4;
+            margin-bottom: 20px;
+        }
+        .page-header {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="~/">🎨 ArtAuction IdentityServer</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="~/.well-known/openid-configuration">Discovery</a>
+                    </li>
+                    @if (User?.Identity?.IsAuthenticated == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="~/Account/Logout">Logout @User.Identity.Name</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        @RenderBody()
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

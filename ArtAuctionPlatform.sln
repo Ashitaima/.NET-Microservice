@@ -27,6 +27,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.ApiGateway", "Ar
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.Aggregator", "ArtAuction.Aggregator\ArtAuction.Aggregator.csproj", "{76F3A758-D441-4524-9F26-6AAA880F0C05}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.Auth.Service", "ArtAuction.Auth.Service\ArtAuction.Auth.Service.csproj", "{C25DF041-7B28-493A-B783-480FAD31438D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArtAuction.IdentityServer", "ArtAuction.IdentityServer\ArtAuction.IdentityServer.csproj", "{EDF91AAB-1ED6-46C6-B7DE-910DC80D0F7C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -84,5 +88,13 @@ Global
 		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{76F3A758-D441-4524-9F26-6AAA880F0C05}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C25DF041-7B28-493A-B783-480FAD31438D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C25DF041-7B28-493A-B783-480FAD31438D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C25DF041-7B28-493A-B783-480FAD31438D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C25DF041-7B28-493A-B783-480FAD31438D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EDF91AAB-1ED6-46C6-B7DE-910DC80D0F7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EDF91AAB-1ED6-46C6-B7DE-910DC80D0F7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EDF91AAB-1ED6-46C6-B7DE-910DC80D0F7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EDF91AAB-1ED6-46C6-B7DE-910DC80D0F7C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

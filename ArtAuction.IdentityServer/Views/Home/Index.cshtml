@@ -1,0 +1,76 @@
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="welcome-page">
+    <div class="lead">
+        <h1>Welcome to ArtAuction IdentityServer</h1>
+    </div>
+
+    <div class="row page-header">
+        <div class="col-sm-10">
+            <h2>OAuth 2.0 / OpenID Connect Provider</h2>
+            <p>This is the centralized authentication and authorization server for the ArtAuction microservices platform.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Configured Clients</h3>
+                </div>
+                <div class="panel-body">
+                    <ul>
+                        <li><strong>Postman</strong> - Authorization Code + PKCE</li>
+                        <li><strong>Swagger UI</strong> - Authorization Code + PKCE</li>
+                        <li><strong>Aggregator Service</strong> - Client Credentials</li>
+                        <li><strong>Web Client</strong> - Authorization Code + PKCE</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">API Resources</h3>
+                </div>
+                <div class="panel-body">
+                    <ul>
+                        <li><strong>auctions_api</strong> - ArtAuction Auctions API</li>
+                        <li><strong>orders_api</strong> - ArtAuction Orders API</li>
+                        <li><strong>artauction_api</strong> - Full API Access</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Endpoints</h3>
+                </div>
+                <div class="panel-body">
+                    <ul>
+                        <li><a href="~/.well-known/openid-configuration">Discovery Document</a></li>
+                        <li><a href="~/connect/authorize">Authorization Endpoint</a></li>
+                        <li><a href="~/connect/token">Token Endpoint</a></li>
+                        <li><a href="~/connect/userinfo">UserInfo Endpoint</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-12 text-center">
+            <p class="version">
+                <strong>Duende IdentityServer 7.3.2</strong> | 
+                <strong>.NET Aspire 13.0.1</strong>
+            </p>
+        </div>
+    </div>
+</div>

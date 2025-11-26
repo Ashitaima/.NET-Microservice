@@ -27,6 +27,13 @@ public abstract class EventConsumerBase : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Skip if RabbitMQ is not available
+        if (_connection == null)
+        {
+            Logger.LogWarning("RabbitMQ connection not available. Consumer {QueueName} will not start.", _queueName);
+            return;
+        }
+
         _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
         // Configure QoS - prefetch 10 messages at a time

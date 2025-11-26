@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.0.1" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,10 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.2" />
-    <PackageReference Include="Aspire.Hosting.MongoDB" Version="8.2.2" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.1" />
+    <PackageReference Include="Aspire.Hosting.Keycloak" Version="13.0.1-preview.1.25575.3" />
+    <PackageReference Include="Aspire.Hosting.MongoDB" Version="13.0.1" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.0.1" />
     <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.0.1" />
-    <PackageReference Include="Aspire.Hosting.Redis" Version="8.2.2" />
+    <PackageReference Include="Aspire.Hosting.Redis" Version="13.0.1" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.0.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +25,8 @@
     <ProjectReference Include="..\ArtAuction.WebApi\ArtAuction.WebApi.csproj" />
     <ProjectReference Include="..\ArtAuction.ApiGateway\ArtAuction.ApiGateway.csproj" />
     <ProjectReference Include="..\ArtAuction.Aggregator\ArtAuction.Aggregator.csproj" />
+    <ProjectReference Include="..\ArtAuction.Auth.Service\ArtAuction.Auth.Service.csproj" />
+    <ProjectReference Include="..\ArtAuction.IdentityServer\ArtAuction.IdentityServer.csproj" />
   </ItemGroup>
 
 </Project>

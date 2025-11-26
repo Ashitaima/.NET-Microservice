@@ -27,6 +27,13 @@ public class RabbitMQEventPublisher : IEventPublisher
     public async Task PublishAsync<TEvent>(TEvent @event, string routingKey, CancellationToken cancellationToken = default) 
         where TEvent : class
     {
+        // Skip if RabbitMQ is not available
+        if (_connection == null)
+        {
+            _logger.LogWarning("RabbitMQ connection not available. Event {EventType} will not be published.", typeof(TEvent).Name);
+            return;
+        }
+
         using var channel = await _connection.CreateChannelAsync(cancellationToken: cancellationToken);
 
         try
