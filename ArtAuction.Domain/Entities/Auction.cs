@@ -16,7 +16,6 @@ public class Auction : BaseEntity
     public string? Description { get; private set; }
 
     [BsonElement("seller_id")]
-    [BsonRepresentation(MongoDB.Bson.BsonType.ObjectId)]
     public string SellerId { get; private set; } = string.Empty;
 
     [BsonElement("start_price")]
@@ -38,7 +37,6 @@ public class Auction : BaseEntity
     public AuctionStatus Status { get; private set; }
 
     [BsonElement("winner_id")]
-    [BsonRepresentation(MongoDB.Bson.BsonType.ObjectId)]
     public string? WinnerId { get; private set; }
 
     [BsonElement("bids")]
@@ -151,7 +149,6 @@ public class Auction : BaseEntity
 public class BidInfo : ValueObject
 {
     [BsonElement("user_id")]
-    [BsonRepresentation(MongoDB.Bson.BsonType.ObjectId)]
     public string UserId { get; private set; } = string.Empty;
 
     [BsonElement("amount")]

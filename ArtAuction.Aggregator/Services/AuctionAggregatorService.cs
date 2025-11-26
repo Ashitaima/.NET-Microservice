@@ -39,13 +39,21 @@ public class AuctionAggregatorService
 
         try
         {
-            // Check distributed cache first
-            var cachedData = await _distributedCache.GetStringAsync(cacheKey, cancellationToken);
-            if (!string.IsNullOrEmpty(cachedData))
+            // Lab #7: Graceful degradation - try cache but continue without it if unavailable
+            try
             {
-                _logger.LogInformation("Cache HIT (Aggregated): {CacheKey}, latency: {Latency}ms", 
-                    cacheKey, stopwatch.ElapsedMilliseconds);
-                return JsonSerializer.Deserialize<AggregatedAuctionDto>(cachedData);
+                var cachedData = await _distributedCache.GetStringAsync(cacheKey, cancellationToken);
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _logger.LogInformation("Cache HIT (Aggregated): {CacheKey}, latency: {Latency}ms", 
+                        cacheKey, stopwatch.ElapsedMilliseconds);
+                    return JsonSerializer.Deserialize<AggregatedAuctionDto>(cachedData);
+                }
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Cache read failed for {CacheKey}, continuing without cache", cacheKey);
+                // Continue without cache - graceful degradation
             }
 
             _logger.LogInformation("Cache MISS (Aggregated): {CacheKey}, making parallel gRPC calls...", cacheKey);
@@ -101,19 +109,27 @@ public class AuctionAggregatorService
                 SourceServices = new List<string> { "AuctionService", "UserService" }
             };
 
-            // Cache aggregated result with shorter TTL (30 seconds for fresh data)
-            var serialized = JsonSerializer.Serialize(aggregatedData);
-            await _distributedCache.SetStringAsync(
-                cacheKey,
-                serialized,
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
-                },
-                cancellationToken);
+            // Lab #7: Cache write with graceful degradation (best effort)
+            try
+            {
+                var serialized = JsonSerializer.Serialize(aggregatedData);
+                await _distributedCache.SetStringAsync(
+                    cacheKey,
+                    serialized,
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
+                    },
+                    cancellationToken);
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Cache write failed for {CacheKey}, continuing without caching", cacheKey);
+                // Ignore cache write failures - continue successfully
+            }
 
             stopwatch.Stop();
-            _logger.LogInformation("Aggregated auction {AuctionId} in {Latency}ms, cached for 30s", 
+            _logger.LogInformation("Aggregated auction {AuctionId} in {Latency}ms", 
                 auctionId, stopwatch.ElapsedMilliseconds);
 
             return aggregatedData;
@@ -144,12 +160,19 @@ public class AuctionAggregatorService
 
         try
         {
-            // Check cache
-            var cachedData = await _distributedCache.GetStringAsync(cacheKey, cancellationToken);
-            if (!string.IsNullOrEmpty(cachedData))
+            // Lab #7: Graceful degradation for cache read
+            try
             {
-                _logger.LogInformation("Cache HIT (Aggregated List): page {Page}", pageNumber);
-                return JsonSerializer.Deserialize<AggregatedAuctionsListDto>(cachedData)!;
+                var cachedData = await _distributedCache.GetStringAsync(cacheKey, cancellationToken);
+                if (!string.IsNullOrEmpty(cachedData))
+                {
+                    _logger.LogInformation("Cache HIT (Aggregated List): page {Page}", pageNumber);
+                    return JsonSerializer.Deserialize<AggregatedAuctionsListDto>(cachedData)!;
+                }
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Cache read failed for page {Page}, continuing without cache", pageNumber);
             }
 
             _logger.LogInformation("Cache MISS (Aggregated List): page {Page}, making parallel gRPC calls...", pageNumber);
@@ -198,18 +221,25 @@ public class AuctionAggregatorService
                 ProcessingTime = stopwatch.Elapsed
             };
 
-            // Cache with 60 second TTL
-            var serialized = JsonSerializer.Serialize(result);
-            await _distributedCache.SetStringAsync(
-                cacheKey,
-                serialized,
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60)
-                },
-                cancellationToken);
+            // Lab #7: Cache write with graceful degradation
+            try
+            {
+                var serialized = JsonSerializer.Serialize(result);
+                await _distributedCache.SetStringAsync(
+                    cacheKey,
+                    serialized,
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60)
+                    },
+                    cancellationToken);
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Cache write failed for page {Page}, continuing without caching", pageNumber);
+            }
 
-            _logger.LogInformation("Aggregated {Count} auctions in {Latency}ms, cached for 60s", 
+            _logger.LogInformation("Aggregated {Count} auctions in {Latency}ms",
                 aggregatedAuctions.Count, stopwatch.ElapsedMilliseconds);
 
             return result;

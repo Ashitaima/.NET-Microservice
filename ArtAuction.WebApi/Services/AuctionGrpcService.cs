@@ -5,6 +5,7 @@ using ArtAuction.WebApi.Protos;
 using Grpc.Core;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Caching.Distributed;
+using System.Diagnostics;
 
 namespace ArtAuction.WebApi.Services;
 
@@ -16,6 +17,7 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
     private readonly IMemoryCache _memoryCache;
     private readonly IDistributedCache _distributedCache;
     private readonly ILogger<AuctionGrpcService> _logger;
+    private readonly AuctionMetricsService _metrics;
     
     // TODO: Inject repository when Infrastructure layer is ready
     // private readonly IAuctionRepository _repository;
@@ -23,23 +25,34 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
     public AuctionGrpcService(
         IMemoryCache memoryCache,
         IDistributedCache distributedCache,
-        ILogger<AuctionGrpcService> logger)
+        ILogger<AuctionGrpcService> logger,
+        AuctionMetricsService metrics)
     {
         _memoryCache = memoryCache;
         _distributedCache = distributedCache;
         _logger = logger;
+        _metrics = metrics;
     }
 
     public override async Task<AuctionResponse> GetAuction(
         GetAuctionRequest request, 
         ServerCallContext context)
     {
+        var stopwatch = Stopwatch.StartNew(); // Lab #7: Measure latency
         var cacheKey = $"auction:{request.Id}";
+        bool cacheHit = false;
         
         // L1 Cache: Check memory cache first
         if (_memoryCache.TryGetValue(cacheKey, out Auction? cachedAuction))
         {
+            stopwatch.Stop();
             _logger.LogInformation("Cache HIT (L1 Memory): {CacheKey}", cacheKey);
+            
+            // Lab #7: Record metrics
+            cacheHit = true;
+            _metrics.RecordOperationDuration("GetAuction", stopwatch.Elapsed.TotalMilliseconds, "success", cacheHit);
+            _metrics.RecordCacheDuration("get", stopwatch.Elapsed.TotalMilliseconds, "L1", true);
+            
             return MapToAuctionResponse(cachedAuction!);
         }
         
@@ -49,11 +62,18 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
         var distributedData = await _distributedCache.GetStringAsync(cacheKey, context.CancellationToken);
         if (!string.IsNullOrEmpty(distributedData))
         {
+            stopwatch.Stop();
             _logger.LogInformation("Cache HIT (L2 Redis): {CacheKey}", cacheKey);
             var auction = System.Text.Json.JsonSerializer.Deserialize<Auction>(distributedData);
             
+            // Lab #7: Record metrics
+            cacheHit = true;
+            _metrics.RecordOperationDuration("GetAuction", stopwatch.Elapsed.TotalMilliseconds, "success", cacheHit);
+            _metrics.RecordCacheDuration("get", stopwatch.Elapsed.TotalMilliseconds, "L2", true);
+            
             // Update L1 cache from L2
             _memoryCache.Set(cacheKey, auction, TimeSpan.FromMinutes(5)); // Shorter TTL for L1
+            _metrics.IncrementCacheEntries();
             
             return MapToAuctionResponse(auction!);
         }
@@ -82,7 +102,14 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
             SlidingExpiration = TimeSpan.FromMinutes(2)
         });
         
-        _logger.LogInformation("Cached auction {AuctionId} in L1 and L2", request.Id);
+        _metrics.IncrementCacheEntries();
+        _metrics.IncrementCacheEntries(); // Both L1 and L2
+        
+        stopwatch.Stop();
+        _logger.LogInformation("Cached auction {AuctionId} in L1 and L2, latency: {Latency}ms", request.Id, stopwatch.Elapsed.TotalMilliseconds);
+        
+        // Lab #7: Record metrics for DB query
+        _metrics.RecordOperationDuration("GetAuction", stopwatch.Elapsed.TotalMilliseconds, "success", cacheHit: false);
         
         return MapToAuctionResponse(auctionFromDb);
     }
@@ -119,6 +146,7 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
         CreateAuctionRequest request, 
         ServerCallContext context)
     {
+        var stopwatch = Stopwatch.StartNew(); // Lab #7: Measure latency
         _logger.LogInformation("Creating new auction: {Title}", request.Title);
         
         // Use domain factory method to create auction
@@ -136,7 +164,12 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
         // Invalidate list caches after write operation
         InvalidateListCaches();
         
-        _logger.LogInformation("Created auction, invalidated list caches");
+        stopwatch.Stop();
+        _logger.LogInformation("Created auction, invalidated list caches, latency: {Latency}ms", stopwatch.Elapsed.TotalMilliseconds);
+        
+        // Lab #7: Record metrics
+        _metrics.RecordAuctionCreated(auction.Status.ToString(), request.SellerId);
+        _metrics.RecordOperationDuration("CreateAuction", stopwatch.Elapsed.TotalMilliseconds, "success", cacheHit: false);
         
         return MapToAuctionResponse(auction);
     }
@@ -145,6 +178,7 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
         PlaceBidRequest request, 
         ServerCallContext context)
     {
+        var stopwatch = Stopwatch.StartNew(); // Lab #7: Measure latency
         _logger.LogInformation("Placing bid on auction {AuctionId} by {BidderId}", 
             request.AuctionId, request.BidderId);
         
@@ -164,10 +198,18 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
             // Invalidate both L1 and L2 cache for this auction
             _memoryCache.Remove(cacheKey);
             await _distributedCache.RemoveAsync(cacheKey, context.CancellationToken);
+            _metrics.DecrementCacheEntries();
+            _metrics.DecrementCacheEntries(); // Both L1 and L2
             
-            _logger.LogInformation("Invalidated cache for auction {AuctionId}", request.AuctionId);
+            stopwatch.Stop();
+            _logger.LogInformation("Invalidated cache for auction {AuctionId}, latency: {Latency}ms", 
+                request.AuctionId, stopwatch.Elapsed.TotalMilliseconds);
             
             var latestBid = auction.Bids.Last();
+            
+            // Lab #7: Record successful bid metrics
+            _metrics.RecordBidPlaced(request.AuctionId, request.BidderId, success: true);
+            _metrics.RecordOperationDuration("PlaceBid", stopwatch.Elapsed.TotalMilliseconds, "success", cacheHit: false);
             
             return new BidResponse
             {
@@ -178,7 +220,14 @@ public class AuctionGrpcService : Protos.AuctionService.AuctionServiceBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to place bid on auction {AuctionId}", request.AuctionId);
+            stopwatch.Stop();
+            _logger.LogError(ex, "Failed to place bid on auction {AuctionId}, latency: {Latency}ms", 
+                request.AuctionId, stopwatch.Elapsed.TotalMilliseconds);
+            
+            // Lab #7: Record failed bid metrics
+            _metrics.RecordBidPlaced(request.AuctionId, request.BidderId, success: false);
+            _metrics.RecordOperationDuration("PlaceBid", stopwatch.Elapsed.TotalMilliseconds, "failure", cacheHit: false);
+            
             return new BidResponse
             {
                 Success = false,

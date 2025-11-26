@@ -1,20 +1,19 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Infrastructure - Databases & Cache
+// Infrastructure - MongoDB for NoSQL data storage (Lab #4)
 var mongodb = builder.AddMongoDB("mongodb")
-    .WithDataVolume("mongodb-data") // Persistent storage
-    .WithMongoExpress(); // MongoDB admin UI
+    .WithDataVolume("mongodb-data"); // Persistent storage
 
 var artauctiondb = mongodb.AddDatabase("artauction-db");
 
-// Redis for distributed caching
+// Infrastructure - Redis for distributed caching
 var redis = builder.AddRedis("redis")
     .WithDataVolume("redis-data") // Persistent cache storage
     .WithRedisCommander(); // Redis admin UI
 
 // Microservices
 var webApi = builder.AddProject<Projects.ArtAuction_WebApi>("artauction-webapi")
-    .WithReference(artauctiondb)
+    .WithReference(artauctiondb) // MongoDB connection
     .WithReference(redis); // Redis connection for caching
 
 // Gateway - Entry point
