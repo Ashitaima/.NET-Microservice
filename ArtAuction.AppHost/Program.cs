@@ -11,10 +11,16 @@ var redis = builder.AddRedis("redis")
     .WithDataVolume("redis-data") // Persistent cache storage
     .WithRedisCommander(); // Redis admin UI
 
+// Infrastructure - RabbitMQ for async event-driven messaging (Lab #8)
+var rabbitmq = builder.AddRabbitMQ("rabbitmq")
+    .WithDataVolume("rabbitmq-data") // Persistent message storage
+    .WithManagementPlugin(); // Management UI on port 15672
+
 // Microservices
 var webApi = builder.AddProject<Projects.ArtAuction_WebApi>("artauction-webapi")
     .WithReference(artauctiondb) // MongoDB connection
-    .WithReference(redis); // Redis connection for caching
+    .WithReference(redis) // Redis connection for caching
+    .WithReference(rabbitmq); // RabbitMQ for events
 
 // Gateway - Entry point
 var apiGateway = builder.AddProject<Projects.ArtAuction_ApiGateway>("api-gateway")
