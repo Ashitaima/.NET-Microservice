@@ -95,6 +95,25 @@ public class Auction : BaseEntity
         UpdateTimestamp();
     }
 
+    public void Update(string artworkName, string? description, DateTime startTime, DateTime endTime)
+    {
+        if (string.IsNullOrWhiteSpace(artworkName))
+            throw new DomainException("Artwork name cannot be empty");
+
+        if (endTime <= startTime)
+            throw new DomainException("End time must be after start time");
+
+        // Don't allow updates to active or finished auctions with bids
+        if (Bids.Count > 0 && Status != AuctionStatus.Pending)
+            throw new DomainException("Cannot update auction with existing bids");
+
+        ArtworkName = artworkName;
+        Description = description;
+        StartTime = startTime;
+        EndTime = endTime;
+        UpdateTimestamp();
+    }
+
     public void Start()
     {
         if (Status != AuctionStatus.Pending)

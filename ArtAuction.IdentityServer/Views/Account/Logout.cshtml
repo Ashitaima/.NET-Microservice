@@ -1,0 +1,30 @@
+@model LogoutViewModel
+
+@{
+    ViewData["Title"] = "Logout";
+}
+
+<div class="logout-page">
+    <div class="page-header">
+        <h1>Logout</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-6">
+            <p>You have been successfully logged out.</p>
+
+            @if (!string.IsNullOrEmpty(Model.PostLogoutRedirectUri))
+            {
+                <p>
+                    <a class="btn btn-primary" href="@Model.PostLogoutRedirectUri">Return to Application</a>
+                </p>
+            }
+            else
+            {
+                <p>
+                    <a class="btn btn-primary" asp-action="Index" asp-controller="Home">Home</a>
+                </p>
+            }
+        </div>
+    </div>
+</div>

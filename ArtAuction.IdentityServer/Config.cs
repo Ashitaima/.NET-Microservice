@@ -116,13 +116,32 @@ public static class Config
                 
                 RedirectUris = 
                 { 
+                    "https://localhost:7270/swagger/oauth2-redirect.html", // WebAPI
+                    "https://localhost:7019/swagger/oauth2-redirect.html", // Gateway
                     "https://localhost:7001/swagger/oauth2-redirect.html",
-                    "https://localhost:5001/swagger/oauth2-redirect.html"
+                    "https://localhost:5001/swagger/oauth2-redirect.html",
+                    "https://localhost:7254/swagger/oauth2-redirect.html", // IdentityServer
+                    "http://localhost:5146/swagger/oauth2-redirect.html",  // Aspire dynamic port
+                    "https://localhost:5146/swagger/oauth2-redirect.html"  // Aspire dynamic port (HTTPS)
+                },
+                PostLogoutRedirectUris = 
+                { 
+                    "https://localhost:7270/swagger",
+                    "https://localhost:7019/swagger",
+                    "https://localhost:7001/swagger",
+                    "https://localhost:5001/swagger",
+                    "http://localhost:5146/swagger",
+                    "https://localhost:5146/swagger"
                 },
                 AllowedCorsOrigins = 
                 { 
+                    "https://localhost:7270",
+                    "https://localhost:7019",
                     "https://localhost:7001",
-                    "https://localhost:5001"
+                    "https://localhost:5001",
+                    "https://localhost:7254",
+                    "http://localhost:5146",
+                    "https://localhost:5146"
                 },
                 
                 AllowedScopes = 
@@ -131,6 +150,30 @@ public static class Config
                     "profile", 
                     "email", 
                     "roles",
+                    "auctions.read", 
+                    "auctions.write",
+                    "artauction.fullaccess"
+                },
+                
+                AllowAccessTokensViaBrowser = true,
+                RequireConsent = false, // Skip consent screen for development
+                AccessTokenLifetime = 3600
+            },
+
+            // API Client for Client Credentials flow (direct API testing)
+            new Client
+            {
+                ClientId = "artauction_api",
+                ClientName = "ArtAuction API Client",
+                AllowedGrantTypes = GrantTypes.ClientCredentials,
+                
+                ClientSecrets = 
+                { 
+                    new Secret("artauction-secret-2024".Sha256()) 
+                },
+                
+                AllowedScopes = 
+                { 
                     "auctions.read", 
                     "auctions.write",
                     "artauction.fullaccess"

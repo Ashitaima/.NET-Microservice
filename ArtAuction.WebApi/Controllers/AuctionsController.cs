@@ -1,4 +1,6 @@
 using ArtAuction.Application.Auctions.Commands.CreateAuction;
+using ArtAuction.Application.Auctions.Commands.UpdateAuction;
+using ArtAuction.Application.Auctions.Commands.DeleteAuction;
 using ArtAuction.Application.Auctions.Commands.PlaceBid;
 using ArtAuction.Application.Auctions.Queries.GetAuction;
 using ArtAuction.Application.Auctions.Queries.GetActiveAuctions;
@@ -113,6 +115,56 @@ public class AuctionsController : ControllerBase
 
         return Ok(auction);
     }
+
+    /// <summary>
+    /// Update auction (Requires authentication - User or Admin role)
+    /// </summary>
+    [HttpPut("{id}")]
+    [Authorize(Policy = "UserOrAdmin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateAuction(
+        string id,
+        [FromBody] UpdateAuctionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new UpdateAuctionCommand
+        {
+            AuctionId = id,
+            ArtworkName = request.ArtworkName,
+            Description = request.Description,
+            StartTime = request.StartTime,
+            EndTime = request.EndTime
+        };
+
+        var auction = await _mediator.Send(command, cancellationToken);
+
+        return Ok(auction);
+    }
+
+    /// <summary>
+    /// Delete auction (Requires authentication - Admin role only)
+    /// </summary>
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteAuction(string id, CancellationToken cancellationToken)
+    {
+        var command = new DeleteAuctionCommand { AuctionId = id };
+
+        var result = await _mediator.Send(command, cancellationToken);
+
+        if (!result)
+            return NotFound(new { Message = $"Auction {id} not found" });
+
+        return NoContent();
+    }
 }
 
 public record PlaceBidRequest(string BidderId, decimal BidAmount);
+public record UpdateAuctionRequest(string ArtworkName, string? Description, DateTime StartTime, DateTime EndTime);

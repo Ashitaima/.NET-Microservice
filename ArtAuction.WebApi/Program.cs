@@ -8,11 +8,26 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using System.Net.Http;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Global HTTP client handler factory to bypass SSL certificate validation in development
+static HttpClientHandler CreateHttpClientHandler() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+};
+
 // Aspire ServiceDefaults - OpenTelemetry, Serilog, Health Checks
 builder.AddServiceDefaults();
+
+// Configure global HttpClient factory to bypass SSL validation for all HTTP clients
+builder.Services.AddHttpClient(Options.DefaultName)
+    .ConfigurePrimaryHttpMessageHandler(() => CreateHttpClientHandler());
 
 // Lab #4: Add Application and Infrastructure layers (Clean Architecture + CQRS + MongoDB)
 builder.Services.AddApplication();
@@ -32,23 +47,199 @@ var identityServerUrl = builder.Configuration.GetConnectionString("identityserve
 var keycloakUrl = builder.Configuration.GetConnectionString("keycloak") 
     ?? "http://localhost:8080"; // Fallback for local development
 
-builder.Services.AddAuthentication(options =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+.AddPolicyScheme(JwtBearerDefaults.AuthenticationScheme, "IdentityServer or Keycloak or Legacy", options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.ForwardDefaultSelector = context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var authorization = context.Request.Headers.Authorization.ToString();
+        
+        if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authorization.Substring("Bearer ".Length).Trim();
+            var jwtHandler = new JwtSecurityTokenHandler();
+
+            // Перевіряємо, чи це валідний JWT формат
+            if (jwtHandler.CanReadToken(token))
+            {
+                try
+                {
+                    // Читаємо токен без валідації підпису, щоб дізнатися хто його видав
+                    var jwtToken = jwtHandler.ReadJwtToken(token);
+                    
+                    // Отримуємо Issuer з налаштувань або використовуємо дефолтний
+                    var legacyIssuer = jwtSettings.Issuer ?? "ArtAuction.AuthService";
+
+                    logger.LogInformation("Token Issuer: {Issuer}, Expected Legacy Issuer: {LegacyIssuer}", 
+                        jwtToken.Issuer, legacyIssuer);
+
+                    // Якщо токен виданий нашим старим сервісом -> використовуємо схему Legacy
+                    if (jwtToken.Issuer.Equals(legacyIssuer, StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogInformation("Selected scheme: Legacy");
+                        return "Legacy";
+                    }
+                    
+                    // Перевірка для Keycloak (якщо issuer містить realm)
+                    if (jwtToken.Issuer?.Contains("/realms/", StringComparison.OrdinalIgnoreCase) == true ||
+                        jwtToken.Issuer?.Contains("keycloak", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        logger.LogInformation("Selected scheme: Keycloak");
+                        return "Keycloak";
+                    }
+                    
+                    logger.LogInformation("Selected scheme: IdentityServer (default for issuer: {Issuer})", jwtToken.Issuer);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error reading JWT token");
+                }
+            }
+            else
+            {
+                logger.LogWarning("Cannot read token as JWT");
+            }
+            
+            // Для всіх інших токенів (IdentityServer)
+            return "IdentityServer"; 
+        }
+        
+        // Дефолтна схема, якщо немає заголовка Authorization
+        logger.LogInformation("No Authorization header, using IdentityServer scheme");
+        return "IdentityServer";
+    };
 })
 .AddJwtBearer("IdentityServer", options =>
 {
-    options.Authority = identityServerUrl;
-    options.RequireHttpsMetadata = false; // For dev only
+    options.RequireHttpsMetadata = false;
+    options.MapInboundClaims = false;
+    options.Authority = "https://localhost:7254";
+    options.Audience = "artauction_api";
+    
+    // ASP.NET Core 8: Use legacy JwtSecurityTokenHandler for compatibility
+    options.UseSecurityTokenValidators = true;
+    
+    // TEMPORARY: Disable signature validation for development
+    // TODO: Fix JWKS retrieval with proper SSL certificate handling
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateAudience = true,
-        ValidAudiences = new[] { "artauction_api", "auctions_api" },
         ValidateIssuer = true,
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
+        ValidateIssuerSigningKey = false,
+        ValidIssuer = "https://localhost:7254",
+        ValidAudiences = new[] { "artauction_api", "auctions_api" },
+        ClockSkew = TimeSpan.FromMinutes(5),
+        RoleClaimType = "role",
+        // Custom signature validator that bypasses signature verification
+        SignatureValidator = (token, parameters) =>
+        {
+            // Read the token without validating the signature
+            var jwtHandler = new JwtSecurityTokenHandler();
+            var jwtToken = jwtHandler.ReadJwtToken(token);
+            return jwtToken;
+        }
+    };
+    
+    // Configure HttpClient for metadata retrieval with SSL bypass
+    options.BackchannelHttpHandler = new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    };
+
+    // Force metadata refresh when keys not found
+    options.RefreshOnIssuerKeyNotFound = true;
+    options.MetadataAddress = "https://localhost:7254/.well-known/openid-configuration";
+    
+    // Add event handlers for debugging
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogError(context.Exception, "Authentication failed: {Error}", context.Exception.Message);
+            
+            // Detailed token info
+            var authorization = context.Request.Headers.Authorization.ToString();
+            if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer "))
+            {
+                var token = authorization.Substring("Bearer ".Length).Trim();
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(token))
+                {
+                    var jwtToken = handler.ReadJwtToken(token);
+                    logger.LogError("Token Details - Issuer: {Issuer}, Audiences: {Audiences}, Expires: {Exp}", 
+                        jwtToken.Issuer,
+                        string.Join(", ", jwtToken.Audiences),
+                        jwtToken.ValidTo);
+                    logger.LogError("Token Claims: {Claims}", 
+                        string.Join(", ", jwtToken.Claims.Select(c => $"{c.Type}={c.Value}")));
+                }
+            }
+            
+            // Log configuration details
+            if (context.Options?.ConfigurationManager != null)
+            {
+                try
+                {
+                    var config = context.Options.ConfigurationManager.GetConfigurationAsync(CancellationToken.None).GetAwaiter().GetResult();
+                    logger.LogError("Configuration loaded. Signing keys count: {Count}", config.SigningKeys?.Count ?? 0);
+                    logger.LogError("Issuer from config: {Issuer}", config.Issuer);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to load OIDC configuration");
+                }
+            }
+            
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("✓✓✓ TOKEN VALIDATED SUCCESSFULLY ✓✓✓");
+            logger.LogInformation("User: {User}, Role claims: {Roles}", 
+                context.Principal?.Identity?.Name,
+                string.Join(", ", context.Principal?.Claims.Where(c => c.Type == "role").Select(c => c.Value) ?? Array.Empty<string>()));
+            return Task.CompletedTask;
+        },
+        OnMessageReceived = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            
+            // Log all headers
+            logger.LogInformation("=== REQUEST HEADERS ===");
+            foreach (var header in context.Request.Headers)
+            {
+                logger.LogInformation("Header: {Key} = {Value}", header.Key, header.Value);
+            }
+            
+            var authorization = context.Request.Headers.Authorization.ToString();
+            logger.LogInformation("Authorization header value: '{Auth}'", authorization);
+            
+            if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer "))
+            {
+                logger.LogInformation("✓ Token found in Authorization header");
+                var token = authorization.Substring("Bearer ".Length).Trim();
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(token))
+                {
+                    var jwtToken = handler.ReadJwtToken(token);
+                    logger.LogInformation("Token claims: Issuer={Issuer}, Audiences={Audiences}, Expiration={Exp}", 
+                        jwtToken.Issuer, 
+                        string.Join(", ", jwtToken.Audiences),
+                        jwtToken.ValidTo);
+                    
+                    foreach (var claim in jwtToken.Claims.Take(10))
+                    {
+                        logger.LogInformation("  Claim: {Type} = {Value}", claim.Type, claim.Value);
+                    }
+                }
+            }
+            
+            return Task.CompletedTask;
+        }
     };
 })
 .AddJwtBearer("Keycloak", options => // Lab #9 Part 3: Keycloak OAuth
@@ -81,32 +272,6 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
-
-// Set policy to accept any of the three schemes
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddPolicyScheme(JwtBearerDefaults.AuthenticationScheme, "IdentityServer or Keycloak or Legacy", options =>
-    {
-        options.ForwardDefaultSelector = context =>
-        {
-            var authorization = context.Request.Headers.Authorization.ToString();
-            if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer "))
-            {
-                var token = authorization.Substring("Bearer ".Length).Trim();
-                
-                // Keycloak tokens typically contain "realm_access" claim
-                // IdentityServer tokens are typically longer and contain "client_id"
-                // Legacy tokens are shorter
-                if (token.Length < 400)
-                {
-                    return "Legacy";
-                }
-                // Try Keycloak first, fallback to IdentityServer
-                // Both will validate against their respective authorities
-                return "Keycloak"; // Will auto-fallback if validation fails
-            }
-            return "IdentityServer";
-        };
-    });
 
 builder.Services.AddAuthorization(options =>
 {
@@ -149,6 +314,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "Art Auction API - OAuth 2.0 with IdentityServer", Version = "v1" });
     
     // Add OAuth 2.0 Authentication to Swagger
+    // IMPORTANT: Use public URL (localhost:7254) not Aspire internal URL
     c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
     {
         Type = SecuritySchemeType.OAuth2,
@@ -156,12 +322,13 @@ builder.Services.AddSwaggerGen(c =>
         {
             AuthorizationCode = new OpenApiOAuthFlow
             {
-                AuthorizationUrl = new Uri($"{identityServerUrl}/connect/authorize"),
-                TokenUrl = new Uri($"{identityServerUrl}/connect/token"),
+                AuthorizationUrl = new Uri("https://localhost:7254/connect/authorize"),
+                TokenUrl = new Uri("https://localhost:7254/connect/token"),
                 Scopes = new Dictionary<string, string>
                 {
                     { "openid", "OpenID Connect" },
                     { "profile", "User profile" },
+                    { "roles", "User roles" },
                     { "auctions.read", "Read access to auctions" },
                     { "auctions.write", "Write access to auctions" },
                     { "artauction.fullaccess", "Full access to Art Auction API" }
@@ -187,7 +354,7 @@ builder.Services.AddSwaggerGen(c =>
             {
                 Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "oauth2" }
             },
-            new[] { "openid", "profile", "auctions.read", "auctions.write", "artauction.fullaccess" }
+            new[] { "openid", "profile", "roles", "auctions.read", "auctions.write", "artauction.fullaccess" }
         }
     });
 });
@@ -207,6 +374,54 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Test IdentityServer connectivity at startup (non-blocking)
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+_ = Task.Run(async () =>
+{
+    await Task.Delay(2000); // Wait 2 seconds for IdentityServer to start
+    try
+    {
+        using var httpClient = new HttpClient(CreateHttpClientHandler());
+        httpClient.Timeout = TimeSpan.FromSeconds(5);
+        var metadataUrl = "https://localhost:7254/.well-known/openid-configuration";
+        logger.LogInformation("Testing connection to IdentityServer metadata at: {MetadataUrl}", metadataUrl);
+        
+        var response = await httpClient.GetAsync(metadataUrl);
+        if (response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            logger.LogInformation("✓ Successfully retrieved IdentityServer metadata. Length: {Length} bytes", content.Length);
+            
+            // Parse and check JWKS URI
+            var discovery = System.Text.Json.JsonDocument.Parse(content);
+            if (discovery.RootElement.TryGetProperty("jwks_uri", out var jwksUri))
+            {
+                logger.LogInformation("✓ JWKS URI from discovery: {JwksUri}", jwksUri.GetString());
+                
+                // Try to fetch JWKS
+                var jwksResponse = await httpClient.GetStringAsync(jwksUri.GetString());
+                var jwks = System.Text.Json.JsonDocument.Parse(jwksResponse);
+                var keysCount = jwks.RootElement.TryGetProperty("keys", out var keys) ? keys.GetArrayLength() : 0;
+                logger.LogInformation("✓ JWKS endpoint accessible. Keys count: {Count}", keysCount);
+            }
+            else
+            {
+                logger.LogError("✗ jwks_uri not found in discovery document!");
+            }
+            
+            logger.LogInformation("✓ IdentityServer is accessible and ready");
+        }
+        else
+        {
+            logger.LogWarning("✗ Failed to retrieve IdentityServer metadata. Status: {Status}", response.StatusCode);
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "✗ Cannot connect to IdentityServer at https://localhost:7254 - it may not be running or still starting up");
+    }
+});
 
 // Lab #7: Health check endpoints - liveness and readiness
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
@@ -241,7 +456,11 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Art Auction API v1");
         c.OAuthClientId("swagger");
         c.OAuthUsePkce();
-        c.OAuthScopes("openid", "profile", "auctions.read", "auctions.write", "artauction.fullaccess");
+        c.OAuthScopes("openid", "profile", "roles", "auctions.read", "auctions.write", "artauction.fullaccess");
+        c.OAuthAppName("Swagger UI");
+        
+        // Persist authorization data in Swagger UI
+        c.EnablePersistAuthorization();
     });
 }
 

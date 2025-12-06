@@ -1,0 +1,40 @@
+@model Duende.IdentityServer.Models.ErrorMessage
+
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="error-page">
+    <div class="page-header">
+        <h1>Error</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-sm-6">
+            <div class="alert alert-danger">
+                <strong>Error:</strong> @Model?.Error
+            </div>
+            @if (Model?.ErrorDescription != null)
+            {
+                <div class="alert alert-info">
+                    <strong>Error Description:</strong> @Model.ErrorDescription
+                </div>
+            }
+            @if (Model?.RequestId != null)
+            {
+                <div class="alert alert-info">
+                    <strong>Request Id:</strong> @Model.RequestId
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (Model?.RedirectUri != null)
+    {
+        <div class="row">
+            <div class="col-sm-6">
+                <a class="btn btn-primary" href="@Model.RedirectUri">Back to Application</a>
+            </div>
+        </div>
+    }
+</div>

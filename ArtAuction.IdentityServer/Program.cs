@@ -1,5 +1,6 @@
 using ArtAuction.IdentityServer;
 using ArtAuction.IdentityServer.Data;
+using ArtAuction.IdentityServer.Services;
 using Duende.IdentityServer.EntityFramework.DbContexts;
 using Duende.IdentityServer.EntityFramework.Mappers;
 using Microsoft.AspNetCore.Identity;
@@ -9,8 +10,20 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Add SQL Server databases from Aspire
-builder.AddSqlServerDbContext<ApplicationDbContext>("ApplicationDb");
+// Add SQL Server databases from Aspire with retry logic
+builder.AddSqlServerDbContext<ApplicationDbContext>("ApplicationDb", settings =>
+{
+    settings.CommandTimeout = 120;
+}, configureDbContextOptions: options =>
+{
+    options.UseSqlServer(o =>
+    {
+        o.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    });
+});
 
 // Configure ASP.NET Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -53,21 +66,55 @@ builder.Services.AddIdentityServer(options =>
 {
     options.ConfigureDbContext = b => b.UseSqlServer(
         builder.Configuration.GetConnectionString("ConfigurationDb") ?? connectionString,
-        sql => sql.MigrationsAssembly(migrationsAssembly));
+        sql =>
+        {
+            sql.MigrationsAssembly(migrationsAssembly);
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        });
 })
 .AddOperationalStore(options =>
 {
     options.ConfigureDbContext = b => b.UseSqlServer(
         builder.Configuration.GetConnectionString("PersistedGrantDb") ?? 
         "Server=localhost;Database=ArtAuction.IdentityServer.PersistedGrant;Trusted_Connection=True;TrustServerCertificate=True",
-        sql => sql.MigrationsAssembly(migrationsAssembly));
+        sql =>
+        {
+            sql.MigrationsAssembly(migrationsAssembly);
+            sql.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null);
+        });
 
     // Automatic cleanup of old tokens
     options.EnableTokenCleanup = true;
     options.TokenCleanupInterval = 3600; // 1 hour
 })
 .AddAspNetIdentity<ApplicationUser>() // Integrate with ASP.NET Identity
+.AddProfileService<ProfileService>() // Add custom profile service for role claims
 .AddDeveloperSigningCredential(); // Use development signing certificate (NOT FOR PRODUCTION!)
+
+// Add CORS for development
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(
+                "https://localhost:7270",
+                "https://localhost:7019",
+                "https://localhost:7001",
+                "https://localhost:5001",
+                "https://localhost:3000",
+                "http://localhost:5146",   // Aspire dynamic port HTTP
+                "https://localhost:5146")  // Aspire dynamic port HTTPS
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
 
 // Add services for controllers and Razor pages (for Quickstart UI)
 builder.Services.AddControllersWithViews();
@@ -77,11 +124,32 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
-// Initialize database in background after app starts
+// Initialize database in background (non-blocking)
 _ = Task.Run(async () =>
 {
-    using var scope = app.Services.CreateScope();
-    await InitializeDatabaseAsync(scope.ServiceProvider);
+    // Wait longer for SQL Server container to be ready
+    await Task.Delay(TimeSpan.FromSeconds(15));
+    
+    // Retry initialization multiple times
+    for (int i = 0; i < 10; i++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            await InitializeDatabaseAsync(scope.ServiceProvider);
+            break; // Success - exit loop
+        }
+        catch (Exception ex)
+        {
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning(ex, "Database initialization attempt {Attempt} failed. Retrying in 10 seconds...", i + 1);
+            
+            if (i < 9) // Don't wait after last attempt
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10));
+            }
+        }
+    }
 });
 
 if (app.Environment.IsDevelopment())
@@ -91,9 +159,67 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseCors(); // CORS before authentication
 
 app.UseIdentityServer(); // Middleware for IdentityServer
 app.UseAuthorization();
+
+// Log signing keys after IdentityServer middleware is configured
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+_ = Task.Run(async () =>
+{
+    await Task.Delay(5000); // Wait for IdentityServer to initialize
+    try
+    {
+        logger.LogInformation("Testing IdentityServer endpoints...");
+        
+        // Test discovery document
+        var httpClient = new HttpClient(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        });
+        
+        var discoveryUrl = "https://localhost:7254/.well-known/openid-configuration";
+        var response = await httpClient.GetAsync(discoveryUrl);
+        if (response.IsSuccessStatusCode)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            logger.LogInformation("✓ Discovery document accessible. Length: {Length} bytes", content.Length);
+            
+            // Parse to get jwks_uri
+            var doc = System.Text.Json.JsonDocument.Parse(content);
+            if (doc.RootElement.TryGetProperty("jwks_uri", out var jwksUriElement))
+            {
+                var jwksUri = jwksUriElement.GetString();
+                logger.LogInformation("JWKS URI from discovery: {JwksUri}", jwksUri);
+                
+                // Try to fetch JWKS
+                var jwksResponse = await httpClient.GetAsync(jwksUri);
+                if (jwksResponse.IsSuccessStatusCode)
+                {
+                    var jwksContent = await jwksResponse.Content.ReadAsStringAsync();
+                    logger.LogInformation("✓ JWKS endpoint accessible. Content: {Content}", jwksContent);
+                }
+                else
+                {
+                    logger.LogError("✗ JWKS endpoint returned {Status}", jwksResponse.StatusCode);
+                }
+            }
+            else
+            {
+                logger.LogError("✗ Discovery document does not contain jwks_uri!");
+            }
+        }
+        else
+        {
+            logger.LogError("✗ Discovery document returned {Status}", response.StatusCode);
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error checking IdentityServer configuration");
+    }
+});
 
 app.MapControllerRoute(
     name: "default",
@@ -123,14 +249,28 @@ async Task InitializeDatabaseAsync(IServiceProvider services)
 
         // Seed configuration data (Clients, Resources, Scopes)
         logger.LogInformation("Seeding configuration data...");
-        if (!configurationDbContext.Clients.Any())
+        
+        // TEMPORARY: Force reload of client configuration to pick up new redirect URIs
+        var existingClients = await configurationDbContext.Clients
+            .Include(c => c.RedirectUris)
+            .Include(c => c.PostLogoutRedirectUris)
+            .Include(c => c.AllowedCorsOrigins)
+            .ToListAsync();
+        
+        if (existingClients.Any())
         {
-            foreach (var client in Config.Clients)
-            {
-                configurationDbContext.Clients.Add(client.ToEntity());
-            }
+            logger.LogInformation("Removing existing clients to reload configuration...");
+            configurationDbContext.Clients.RemoveRange(existingClients);
             await configurationDbContext.SaveChangesAsync();
         }
+        
+        // Always seed clients (after removal or if empty)
+        logger.LogInformation("Seeding clients...");
+        foreach (var client in Config.Clients)
+        {
+            configurationDbContext.Clients.Add(client.ToEntity());
+        }
+        await configurationDbContext.SaveChangesAsync();
 
         if (!configurationDbContext.IdentityResources.Any())
         {

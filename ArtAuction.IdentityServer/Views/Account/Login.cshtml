@@ -1,0 +1,78 @@
+@model LoginViewModel
+
+@{
+    ViewData["Title"] = "Login";
+}
+
+<div class="login-page">
+    <div class="page-header">
+        <h1>Login to ArtAuction</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">Local Account</h3>
+                </div>
+                <div class="panel-body">
+                    <form asp-route="Login" method="post">
+                        <input type="hidden" asp-for="ReturnUrl" />
+
+                        <div class="form-group">
+                            <label asp-for="Username">Email / Username</label>
+                            <input asp-for="Username" class="form-control" placeholder="Email or username" autofocus />
+                            <span asp-validation-for="Username" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="Password">Password</label>
+                            <input asp-for="Password" type="password" class="form-control" placeholder="Password" />
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="checkbox">
+                                <label>
+                                    <input asp-for="RememberMe" />
+                                    <strong>Remember Me</strong>
+                                </label>
+                            </div>
+                        </div>
+
+                        @if (!ViewData.ModelState.IsValid)
+                        {
+                            <div class="alert alert-danger">
+                                <strong>Error!</strong>
+                                <div asp-validation-summary="All" class="text-danger"></div>
+                            </div>
+                        }
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary" name="button" value="login">Login</button>
+                            <a class="btn btn-default" asp-action="Index" asp-controller="Home">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="panel panel-info">
+                <div class="panel-heading">
+                    <h4 class="panel-title">Test Credentials</h4>
+                </div>
+                <div class="panel-body">
+                    <p><strong>Admin User:</strong></p>
+                    <ul>
+                        <li>Email: <code>admin@@artauction.com</code></li>
+                        <li>Password: <code>Admin@@123</code></li>
+                    </ul>
+                    <p><strong>Test User:</strong></p>
+                    <ul>
+                        <li>Email: <code>test@@artauction.com</code></li>
+                        <li>Password: <code>Test@@123</code></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

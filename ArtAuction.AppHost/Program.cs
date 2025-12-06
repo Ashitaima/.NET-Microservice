@@ -69,6 +69,9 @@ var identityServer = builder.AddProject<Projects.ArtAuction_IdentityServer>("ide
     .WithReference(configurationDb)
     .WithReference(persistedGrantDb)
     .WithReference(applicationDb)
+    .WaitFor(configurationDb)
+    .WaitFor(persistedGrantDb)
+    .WaitFor(applicationDb)
     .WithEnvironment("DCP_IDE_REQUEST_TIMEOUT_SECONDS", "180"); // Increase timeout for DB migrations
 
 // Microservices
@@ -77,6 +80,7 @@ var webApi = builder.AddProject<Projects.ArtAuction_WebApi>("artauction-webapi")
     .WithReference(redis) // Redis connection for caching
     .WithReference(rabbitmq) // RabbitMQ for events
     .WithReference(identityServer) // IdentityServer for OAuth 2.0
+    .WaitFor(identityServer) // Wait for IdentityServer to be ready before starting WebAPI
     .WithEnvironment("ConnectionStrings__keycloak", "http://keycloak:8080"); // Keycloak URL
 
 // Gateway - Entry point
